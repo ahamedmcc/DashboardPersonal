@@ -1,0 +1,168 @@
+// Personal Command Dashboard — Prisma schema
+// Phase 1: full data model per SRS §6.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// Only Task explicitly enumerates values in the SRS; other modules use plain
+// strings for now and may be tightened in later phases.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.1 User — owner of the dashboard. MVP has a single user; multi-user roles
+// are listed under Future Enhancements.
+// ─────────────────────────────────────────────────────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.2 Task
+// ─────────────────────────────────────────────────────────────────────────────
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(PENDING)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  category    String?
+  source      String       @default("manual") // "manual" | "telegram" | …
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.3 Meeting
+// ─────────────────────────────────────────────────────────────────────────────
+model Meeting {
+  id           String   @id @default(cuid())
+  title        String
+  dateTime     DateTime
+  location     String?
+  participants String[] @default([])
+  agenda       String?
+  notes        String?
+  actionItems  String[] @default([])
+  source       String   @default("manual")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([dateTime])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.4 KnowledgeNote
+// ─────────────────────────────────────────────────────────────────────────────
+model KnowledgeNote {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  tags      String[] @default([])
+  category  String?
+  source    String   @default("manual")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.5 EmailSummary
+// ─────────────────────────────────────────────────────────────────────────────
+model EmailSummary {
+  id             String    @id @default(cuid())
+  sender         String
+  subject        String
+  summary        String
+  importance     String    @default("medium") // low | medium | high
+  requiredAction String?
+  dueDate        DateTime?
+  status         String    @default("pending") // pending | actioned | ignored
+  createdAt      DateTime  @default(now())
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.6 NewsSummary
+// ─────────────────────────────────────────────────────────────────────────────
+model NewsSummary {
+  id        String   @id @default(cuid())
+  title     String
+  category  String
+  summary   String
+  sourceUrl String?
+  createdAt DateTime @default(now())
+
+  @@index([category])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.7 BookSummary
+// ─────────────────────────────────────────────────────────────────────────────
+model BookSummary {
+  id           String   @id @default(cuid())
+  bookTitle    String
+  author       String?
+  chapter      String?
+  summary      String
+  keyIdeas     String[] @default([])
+  actionPoints String[] @default([])
+  reflection   String?
+  status       String   @default("reading") // reading | completed | on_hold | dropped
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.8 TelegramEvent — raw audit log for every Telegram-originated message that
+// reaches the system (via Hermes or directly).
+// ─────────────────────────────────────────────────────────────────────────────
+model TelegramEvent {
+  id                String   @id @default(cuid())
+  telegramMessageId String? // Telegram-side id (string for safety with 64-bit ids)
+  rawMessage        Json
+  classifiedType    String? // task | note | meeting | book | news | knowledge | reminder | unknown
+  processedStatus   String   @default("pending") // pending | processed | failed
+  errorMessage      String?
+  createdAt         DateTime @default(now())
+
+  @@index([processedStatus])
+  @@index([createdAt])
+}
